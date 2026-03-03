@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard — Admin Panel</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <span class="nav-brand">Admin Panel</span>
+        <div class="nav-right">
+            <span class="nav-user">{{ user.username }} ({{ user.role }})</span>
+            <a href="/logout" class="btn btn-small">Logout</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h2>Dashboard</h2>
+
+        {% if let Some(msg) = success %}
+        <div class="alert success">{{ msg }}</div>
+        {% endif %}
+
+        {% if let Some(err) = error %}
+        <div class="alert error">{{ err }}</div>
+        {% endif %}
+
+        {% if user.role == "admin" %}
+        <div class="card">
+            <h3>Add User</h3>
+            <form method="POST" action="/users/create" class="inline-form">
+                <div class="form-row">
+                    <input type="text" name="username" placeholder="Username" required>
+                    <input type="password" name="password" placeholder="Password" required>
+                    <select name="role">
+                        <option value="user">Regular User</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                    <button type="submit" class="btn btn-primary">Add</button>
+                </div>
+            </form>
+        </div>
+        {% endif %}
+
+        <div class="card">
+            <h3>Users</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Username</th>
+                        <th>Role</th>
+                        <th>Created</th>
+                        {% if user.role == "admin" %}
+                        <th>Actions</th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for u in users %}
+                    <tr>
+                        <td>{{ u.id }}</td>
+                        <td>{{ u.username }}</td>
+                        <td><span class="badge badge-{{ u.role }}">{{ u.role }}</span></td>
+                        <td>{{ u.created_at }}</td>
+                        {% if user.role == "admin" %}
+                        <td>
+                            {% if u.id != user.id %}
+                            <form method="POST" action="/users/delete" class="inline">
+                                <input type="hidden" name="user_id" value="{{ u.id }}">
+                                <button type="submit" class="btn btn-danger btn-small"
+                                    onclick="return confirm('Delete user {{ u.username }}?')">Delete</button>
+                            </form>
+                            {% else %}
+                            <span class="text-muted">You</span>
+                            {% endif %}
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,15 @@
+[server]
+listen_addr = "0.0.0.0:3000"
+
+[auth]
+# Public URL of this auth service (used in forward-auth redirects)
+# auth_url = "https://auth.example.com"
+
+# Cookie domain for cross-subdomain auth
+# cookie_domain = ".example.com"
+
+# Set true when behind HTTPS
+# cookie_secure = true
+
+[database]
+path = "admin.db"

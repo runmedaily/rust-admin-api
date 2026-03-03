@@ -1,0 +1,5 @@
+/target
+*.db
+.direnv
+result
+.claude
