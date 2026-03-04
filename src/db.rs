@@ -15,6 +15,16 @@ pub struct User {
     pub created_at: String,
 }
 
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ApiToken {
+    pub id: i64,
+    pub name: String,
+    pub user_id: i64,
+    pub username: String,
+    pub created_at: String,
+    pub last_used: Option<String>,
+}
+
 pub type Db = Arc<Mutex<Connection>>;
 
 pub fn init_db(path: &str) -> Db {
@@ -32,6 +42,14 @@ pub fn init_db(path: &str) -> Db {
             token TEXT PRIMARY KEY,
             user_id INTEGER NOT NULL,
             created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+        CREATE TABLE IF NOT EXISTS api_tokens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            user_id INTEGER NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            last_used TEXT,
             FOREIGN KEY (user_id) REFERENCES users(id)
         );",
     )
@@ -179,14 +197,125 @@ pub fn create_user(db: &Db, username: &str, password: &str, role: &str) -> Resul
 
 pub fn delete_user(db: &Db, user_id: i64) -> Result<(), String> {
     let conn = db.lock().unwrap();
-    // Delete sessions first
+    // Delete sessions and tokens first
     let _ = conn.execute("DELETE FROM sessions WHERE user_id = ?1", params![user_id]);
+    let _ = conn.execute("DELETE FROM api_tokens WHERE user_id = ?1", params![user_id]);
     let affected = conn
         .execute("DELETE FROM users WHERE id = ?1", params![user_id])
         .map_err(|e| e.to_string())?;
 
     if affected == 0 {
         Err("User not found".to_string())
+    } else {
+        Ok(())
+    }
+}
+
+// --- API Tokens ---
+
+/// Create a new API token record. Returns the token ID.
+pub fn create_api_token(db: &Db, name: &str, user_id: i64) -> Result<i64, String> {
+    let conn = db.lock().unwrap();
+    conn.execute(
+        "INSERT INTO api_tokens (name, user_id) VALUES (?1, ?2)",
+        params![name, user_id],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(conn.last_insert_rowid())
+}
+
+/// Check if a token ID exists (not revoked) and return the owning user.
+pub fn verify_api_token(db: &Db, token_id: i64) -> Option<User> {
+    let conn = db.lock().unwrap();
+
+    // Update last_used timestamp
+    let _ = conn.execute(
+        "UPDATE api_tokens SET last_used = datetime('now') WHERE id = ?1",
+        params![token_id],
+    );
+
+    let mut stmt = conn
+        .prepare(
+            "SELECT u.id, u.username, u.password_hash, u.role, u.created_at
+             FROM users u JOIN api_tokens t ON u.id = t.user_id
+             WHERE t.id = ?1",
+        )
+        .ok()?;
+
+    stmt.query_row(params![token_id], |row| {
+        Ok(User {
+            id: row.get(0)?,
+            username: row.get(1)?,
+            password_hash: row.get(2)?,
+            role: row.get(3)?,
+            created_at: row.get(4)?,
+        })
+    })
+    .ok()
+}
+
+/// List all API tokens (for admin dashboard).
+pub fn list_api_tokens(db: &Db) -> Vec<ApiToken> {
+    let conn = db.lock().unwrap();
+    let mut stmt = conn
+        .prepare(
+            "SELECT t.id, t.name, t.user_id, u.username, t.created_at, t.last_used
+             FROM api_tokens t JOIN users u ON t.user_id = u.id
+             ORDER BY t.id",
+        )
+        .unwrap();
+
+    stmt.query_map([], |row| {
+        Ok(ApiToken {
+            id: row.get(0)?,
+            name: row.get(1)?,
+            user_id: row.get(2)?,
+            username: row.get(3)?,
+            created_at: row.get(4)?,
+            last_used: row.get(5)?,
+        })
+    })
+    .unwrap()
+    .filter_map(|r| r.ok())
+    .collect()
+}
+
+/// List API tokens for a specific user.
+pub fn list_user_api_tokens(db: &Db, user_id: i64) -> Vec<ApiToken> {
+    let conn = db.lock().unwrap();
+    let mut stmt = conn
+        .prepare(
+            "SELECT t.id, t.name, t.user_id, u.username, t.created_at, t.last_used
+             FROM api_tokens t JOIN users u ON t.user_id = u.id
+             WHERE t.user_id = ?1
+             ORDER BY t.id",
+        )
+        .unwrap();
+
+    stmt.query_map(params![user_id], |row| {
+        Ok(ApiToken {
+            id: row.get(0)?,
+            name: row.get(1)?,
+            user_id: row.get(2)?,
+            username: row.get(3)?,
+            created_at: row.get(4)?,
+            last_used: row.get(5)?,
+        })
+    })
+    .unwrap()
+    .filter_map(|r| r.ok())
+    .collect()
+}
+
+/// Delete (revoke) an API token.
+pub fn delete_api_token(db: &Db, token_id: i64) -> Result<(), String> {
+    let conn = db.lock().unwrap();
+    let affected = conn
+        .execute("DELETE FROM api_tokens WHERE id = ?1", params![token_id])
+        .map_err(|e| e.to_string())?;
+
+    if affected == 0 {
+        Err("Token not found".to_string())
     } else {
         Ok(())
     }

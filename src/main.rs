@@ -13,6 +13,7 @@ use axum::{
 use axum_extra::extract::cookie::{Cookie, CookieJar};
 use askama::Template;
 use clap::Parser;
+use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation};
 use tower_http::services::ServeDir;
 use tracing_subscriber::EnvFilter;
 
@@ -35,6 +36,23 @@ struct AppConfig {
     auth_url: String,
     cookie_domain: Option<String>,
     cookie_secure: bool,
+    jwt_secret: String,
+}
+
+// --- JWT Claims ---
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct Claims {
+    /// User ID
+    sub: i64,
+    /// Token ID in the api_tokens table
+    tid: i64,
+    /// Username
+    username: String,
+    /// Role
+    role: String,
+    /// Issued at (unix timestamp)
+    iat: i64,
 }
 
 // --- Templates ---
@@ -51,8 +69,10 @@ struct LoginTemplate {
 struct DashboardTemplate {
     user: db::User,
     users: Vec<db::User>,
+    api_tokens: Vec<db::ApiToken>,
     error: Option<String>,
     success: Option<String>,
+    new_token: Option<String>,
 }
 
 // --- Form data ---
@@ -75,6 +95,16 @@ struct CreateUserForm {
 #[derive(serde::Deserialize)]
 struct DeleteUserForm {
     user_id: i64,
+}
+
+#[derive(serde::Deserialize)]
+struct CreateTokenForm {
+    token_name: String,
+}
+
+#[derive(serde::Deserialize)]
+struct RevokeTokenForm {
+    token_id: i64,
 }
 
 #[derive(serde::Deserialize)]
@@ -114,6 +144,69 @@ fn build_original_url(headers: &HeaderMap) -> Option<String> {
 /// Basic open-redirect protection: only allow relative or http(s) URLs.
 fn is_safe_redirect(url: &str) -> bool {
     url.starts_with('/') || url.starts_with("http://") || url.starts_with("https://")
+}
+
+/// Create a signed JWT for an API token.
+fn encode_jwt(user: &db::User, token_id: i64, secret: &str) -> Result<String, String> {
+    let claims = Claims {
+        sub: user.id,
+        tid: token_id,
+        username: user.username.clone(),
+        role: user.role.clone(),
+        iat: chrono::Utc::now().timestamp(),
+    };
+    jsonwebtoken::encode(
+        &Header::default(),
+        &claims,
+        &EncodingKey::from_secret(secret.as_bytes()),
+    )
+    .map_err(|e| format!("JWT encode error: {e}"))
+}
+
+/// Verify a Bearer JWT token: check signature, then check token_id is not revoked in DB.
+fn verify_bearer(token: &str, database: &db::Db, secret: &str) -> Option<db::User> {
+    let mut validation = Validation::default();
+    validation.required_spec_claims.clear(); // we don't use exp
+    validation.validate_exp = false;
+
+    let token_data = jsonwebtoken::decode::<Claims>(
+        token,
+        &DecodingKey::from_secret(secret.as_bytes()),
+        &validation,
+    )
+    .ok()?;
+
+    // Check the token ID still exists in DB (not revoked)
+    db::verify_api_token(database, token_data.claims.tid)
+}
+
+/// Build the dashboard template with all data for the current user.
+fn build_dashboard(
+    user: db::User,
+    database: &db::Db,
+    error: Option<String>,
+    success: Option<String>,
+    new_token: Option<String>,
+) -> axum::response::Response {
+    let users = if user.role == "admin" {
+        db::list_users(database)
+    } else {
+        vec![user.clone()]
+    };
+    let api_tokens = if user.role == "admin" {
+        db::list_api_tokens(database)
+    } else {
+        db::list_user_api_tokens(database, user.id)
+    };
+    let tmpl = DashboardTemplate {
+        user,
+        users,
+        api_tokens,
+        error,
+        success,
+        new_token,
+    };
+    render_template(&tmpl).into_response()
 }
 
 // --- Handlers ---
@@ -195,67 +288,70 @@ async fn logout(
 
 /// Forward auth endpoint for Traefik / Nginx / Caddy.
 ///
-/// Returns 200 with `X-Forwarded-User` and `X-Forwarded-Role` headers if the
-/// request has a valid session. Otherwise redirects browsers to the login page
-/// (with `rd` param for post-login redirect) or returns 401 for API clients.
+/// Authenticates via session cookie OR `Authorization: Bearer <jwt>`.
+/// Returns 200 with `X-Forwarded-User` and `X-Forwarded-Role` headers if valid.
+/// Otherwise redirects browsers to login or returns 401 for API clients.
 async fn verify_auth(
     jar: CookieJar,
     State(database): State<db::Db>,
     Extension(config): Extension<AppConfig>,
     headers: HeaderMap,
 ) -> impl IntoResponse {
+    // 1. Try session cookie
     if let Some(user) = get_session_user(&jar, &database) {
-        let mut response = StatusCode::OK.into_response();
-        let resp_headers = response.headers_mut();
-        resp_headers.insert("X-Forwarded-User", user.username.parse().unwrap());
-        resp_headers.insert("X-Forwarded-Role", user.role.parse().unwrap());
-        response
-    } else {
-        let original_url = build_original_url(&headers);
-        let rd = original_url.as_deref().unwrap_or("/");
-        let login_url = format!(
-            "{}/login?rd={}",
-            config.auth_url,
-            urlencoding::encode(rd)
-        );
-
-        // Browsers get a redirect; API clients get 401
-        let accepts_html = headers
-            .get("accept")
-            .and_then(|v| v.to_str().ok())
-            .map(|v| v.contains("text/html"))
-            .unwrap_or(false);
-
-        if accepts_html {
-            Redirect::temporary(&login_url).into_response()
-        } else {
-            (
-                StatusCode::UNAUTHORIZED,
-                [("X-Auth-Redirect", login_url)],
-            )
-                .into_response()
-        }
+        return ok_with_user_headers(user);
     }
+
+    // 2. Try Bearer JWT token
+    if let Some(user) = extract_bearer(&headers, &database, &config.jwt_secret) {
+        return ok_with_user_headers(user);
+    }
+
+    // 3. Not authenticated
+    let original_url = build_original_url(&headers);
+    let rd = original_url.as_deref().unwrap_or("/");
+    let login_url = format!(
+        "{}/login?rd={}",
+        config.auth_url,
+        urlencoding::encode(rd)
+    );
+
+    let accepts_html = headers
+        .get("accept")
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v.contains("text/html"))
+        .unwrap_or(false);
+
+    if accepts_html {
+        Redirect::temporary(&login_url).into_response()
+    } else {
+        (
+            StatusCode::UNAUTHORIZED,
+            [("X-Auth-Redirect", login_url)],
+        )
+            .into_response()
+    }
+}
+
+fn ok_with_user_headers(user: db::User) -> axum::response::Response {
+    let mut response = StatusCode::OK.into_response();
+    let resp_headers = response.headers_mut();
+    resp_headers.insert("X-Forwarded-User", user.username.parse().unwrap());
+    resp_headers.insert("X-Forwarded-Role", user.role.parse().unwrap());
+    response
+}
+
+fn extract_bearer(headers: &HeaderMap, database: &db::Db, jwt_secret: &str) -> Option<db::User> {
+    let auth = headers.get("authorization")?.to_str().ok()?;
+    let token = auth.strip_prefix("Bearer ")?;
+    verify_bearer(token, database, jwt_secret)
 }
 
 async fn dashboard(jar: CookieJar, State(database): State<db::Db>) -> impl IntoResponse {
     let Some(user) = get_session_user(&jar, &database) else {
         return Redirect::to("/login").into_response();
     };
-
-    let users = if user.role == "admin" {
-        db::list_users(&database)
-    } else {
-        vec![user.clone()]
-    };
-
-    let tmpl = DashboardTemplate {
-        user,
-        users,
-        error: None,
-        success: None,
-    };
-    render_template(&tmpl).into_response()
+    build_dashboard(user, &database, None, None, None)
 }
 
 async fn create_user(
@@ -278,14 +374,7 @@ async fn create_user(
         Err(e) => (Some(e), None),
     };
 
-    let users = db::list_users(&database);
-    let tmpl = DashboardTemplate {
-        user,
-        users,
-        error,
-        success,
-    };
-    render_template(&tmpl).into_response()
+    build_dashboard(user, &database, error, success, None)
 }
 
 async fn delete_user(
@@ -302,14 +391,13 @@ async fn delete_user(
     }
 
     if form.user_id == user.id {
-        let users = db::list_users(&database);
-        let tmpl = DashboardTemplate {
+        return build_dashboard(
             user,
-            users,
-            error: Some("Cannot delete yourself".to_string()),
-            success: None,
-        };
-        return render_template(&tmpl).into_response();
+            &database,
+            Some("Cannot delete yourself".to_string()),
+            None,
+            None,
+        );
     }
 
     let (error, success) = match db::delete_user(&database, form.user_id) {
@@ -317,14 +405,72 @@ async fn delete_user(
         Err(e) => (Some(e), None),
     };
 
-    let users = db::list_users(&database);
-    let tmpl = DashboardTemplate {
-        user,
-        users,
-        error,
-        success,
+    build_dashboard(user, &database, error, success, None)
+}
+
+async fn create_token(
+    jar: CookieJar,
+    State(database): State<db::Db>,
+    Extension(config): Extension<AppConfig>,
+    Form(form): Form<CreateTokenForm>,
+) -> impl IntoResponse {
+    let Some(user) = get_session_user(&jar, &database) else {
+        return Redirect::to("/login").into_response();
     };
-    render_template(&tmpl).into_response()
+
+    if user.role != "admin" {
+        return Redirect::to("/dashboard").into_response();
+    }
+
+    let name = form.token_name.trim();
+    if name.is_empty() {
+        return build_dashboard(
+            user,
+            &database,
+            Some("Token name cannot be empty".to_string()),
+            None,
+            None,
+        );
+    }
+
+    match db::create_api_token(&database, name, user.id) {
+        Ok(token_id) => match encode_jwt(&user, token_id, &config.jwt_secret) {
+            Ok(jwt) => build_dashboard(
+                user,
+                &database,
+                None,
+                Some(format!("Token '{}' created — copy it now, it won't be shown again", name)),
+                Some(jwt),
+            ),
+            Err(e) => {
+                // Clean up the DB row if JWT encoding fails
+                let _ = db::delete_api_token(&database, token_id);
+                build_dashboard(user, &database, Some(e), None, None)
+            }
+        },
+        Err(e) => build_dashboard(user, &database, Some(e), None, None),
+    }
+}
+
+async fn revoke_token(
+    jar: CookieJar,
+    State(database): State<db::Db>,
+    Form(form): Form<RevokeTokenForm>,
+) -> impl IntoResponse {
+    let Some(user) = get_session_user(&jar, &database) else {
+        return Redirect::to("/login").into_response();
+    };
+
+    if user.role != "admin" {
+        return Redirect::to("/dashboard").into_response();
+    }
+
+    let (error, success) = match db::delete_api_token(&database, form.token_id) {
+        Ok(()) => (None, Some("Token revoked".to_string())),
+        Err(e) => (Some(e), None),
+    };
+
+    build_dashboard(user, &database, error, success, None)
 }
 
 #[tokio::main]
@@ -361,10 +507,13 @@ async fn main() {
         cfg.server.listen_addr.clone()
     };
 
+    let jwt_secret = config::resolve_jwt_secret(&cfg.auth);
+
     let app_config = AppConfig {
         auth_url: cfg.auth.auth_url,
         cookie_domain: cfg.auth.cookie_domain,
         cookie_secure: cfg.auth.cookie_secure,
+        jwt_secret,
     };
 
     let database = db::init_db(&cfg.database.path);
@@ -376,6 +525,8 @@ async fn main() {
         .route("/dashboard", get(dashboard))
         .route("/users/create", post(create_user))
         .route("/users/delete", post(delete_user))
+        .route("/tokens/create", post(create_token))
+        .route("/tokens/revoke", post(revoke_token))
         .route("/api/verify", get(verify_auth))
         .nest_service("/static", ServeDir::new("static"))
         .layer(Extension(app_config))

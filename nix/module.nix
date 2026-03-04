@@ -20,6 +20,7 @@ let
     auth_url = "${effectiveAuthUrl}"
     ${lib.optionalString (cfg.cookieDomain != null) ''cookie_domain = "${cfg.cookieDomain}"''}
     cookie_secure = ${lib.boolToString cfg.cookieSecure}
+    jwt_secret_file = "${cfg.dataDir}/jwt.secret"
 
     [database]
     path = "${cfg.dataDir}/admin.db"
@@ -107,6 +108,14 @@ in {
       wantedBy = [ "multi-user.target" ];
       after = [ "network-online.target" ];
       wants = [ "network-online.target" ];
+
+      # Generate JWT secret on first start
+      preStart = ''
+        if [ ! -f ${cfg.dataDir}/jwt.secret ]; then
+          ${pkgs.openssl}/bin/openssl rand -hex 32 > ${cfg.dataDir}/jwt.secret
+          chmod 600 ${cfg.dataDir}/jwt.secret
+        fi
+      '';
 
       serviceConfig = {
         ExecStart = "${pkg}/bin/rust-admin-api --config ${configFile}";

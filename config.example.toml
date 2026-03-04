@@ -11,5 +11,9 @@ listen_addr = "0.0.0.0:3000"
 # Set true when behind HTTPS
 # cookie_secure = true
 
+# JWT secret for API tokens (set one or the other)
+# jwt_secret = "change-me-to-a-random-string"
+# jwt_secret_file = "/srv/rust-admin-api/jwt.secret"
+
 [database]
 path = "admin.db"

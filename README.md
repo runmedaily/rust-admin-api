@@ -2,7 +2,7 @@
 
 Admin panel and forward auth server for reverse proxies. Built with Rust (Axum) and deployable as a NixOS service with built-in Caddy integration.
 
-Provides user management (create/delete, roles) and a `/api/verify` endpoint that works as a forward auth middleware for Caddy, Traefik, or Nginx — protecting any service behind a login page.
+Provides user management (create/delete, roles), JWT API tokens, and a `/api/verify` endpoint that works as a forward auth middleware for Caddy, Traefik, or Nginx — protecting any service behind a login page or Bearer token.
 
 ## Quick start
 
@@ -41,6 +41,8 @@ listen_addr = "0.0.0.0:3000"
 auth_url = "https://auth.example.com"   # public URL for redirect construction
 cookie_domain = ".example.com"           # cross-subdomain cookie sharing
 cookie_secure = true                     # required behind HTTPS
+jwt_secret = "change-me"                 # or use jwt_secret_file for production
+# jwt_secret_file = "/srv/rust-admin-api/jwt.secret"
 
 [database]
 path = "admin.db"
@@ -52,6 +54,8 @@ All fields have defaults. Missing config file = defaults. Missing fields = defau
 
 `GET /api/verify` — designed for Caddy's `forward_auth`, Traefik's `ForwardAuth`, or Nginx's `auth_request`.
 
+Accepts authentication via **session cookie** (browser) or **`Authorization: Bearer <jwt>`** header (API).
+
 **Authenticated request** → `200 OK` with headers:
 - `X-Forwarded-User: <username>`
 - `X-Forwarded-Role: <admin|user>`
@@ -59,6 +63,19 @@ All fields have defaults. Missing config file = defaults. Missing fields = defau
 **Unauthenticated browser** (`Accept: text/html`) → `307` redirect to login page with `?rd=<original_url>` for post-login redirect back.
 
 **Unauthenticated API client** → `401 Unauthorized` with `X-Auth-Redirect` header.
+
+## API tokens (JWT)
+
+Admins can create long-lived JWT tokens from the dashboard for programmatic access. Tokens authenticate via `Authorization: Bearer <jwt>` and work with the `/api/verify` endpoint.
+
+```bash
+# Use a token with curl
+curl -H "Authorization: Bearer eyJ..." https://app.example.com/api/data
+
+# The proxy verifies via /api/verify and forwards with user headers
+```
+
+Tokens are tracked in the database and can be revoked from the dashboard. The JWT secret is configured via `jwt_secret` or `jwt_secret_file` (the NixOS module auto-generates one on first deploy).
 
 ## Routes
 
@@ -71,6 +88,8 @@ All fields have defaults. Missing config file = defaults. Missing fields = defau
 | GET | `/dashboard` | Admin panel |
 | POST | `/users/create` | Create user (admin only) |
 | POST | `/users/delete` | Delete user (admin only) |
+| POST | `/tokens/create` | Create API token (admin only) |
+| POST | `/tokens/revoke` | Revoke API token (admin only) |
 | GET | `/api/verify` | Forward auth endpoint |
 
 ## NixOS deployment

@@ -1,6 +1,7 @@
 /* ============================================
-   Admin Panel — Monochrome Dark Theme
-   Industrial-luxe with luminous highlights
+   Admin Panel — Dual Theme (Dark/Light)
+   Dark: Industrial-luxe with luminous highlights
+   Light: Warm paper with precise shadows
    ============================================ */
 
 :root {
@@ -35,6 +36,11 @@
     --glow-lg: 0 0 25px rgba(255, 255, 255, 0.16), 0 0 60px rgba(255, 255, 255, 0.06);
     --glow-xl: 0 0 30px rgba(255, 255, 255, 0.22), 0 0 80px rgba(255, 255, 255, 0.08);
 
+    /* Shadow system (used for depth in light mode, mostly invisible in dark) */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.25);
+    --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.35);
+
     /* Functional */
     --success: #4ade80;
     --success-bg: rgba(74, 222, 128, 0.07);
@@ -45,6 +51,41 @@
     --info: #93c5fd;
     --info-bg: rgba(147, 197, 253, 0.07);
     --info-border: rgba(147, 197, 253, 0.15);
+
+    /* Primary button */
+    --btn-primary-bg: var(--text-white);
+    --btn-primary-border: rgba(255, 255, 255, 0.9);
+    --btn-primary-color: var(--bg-void);
+    --btn-primary-hover-bg: #ffffff;
+    --btn-primary-hover-border: #ffffff;
+    --btn-primary-hover-color: #000;
+
+    /* Auth page */
+    --auth-spotlight: rgba(255, 255, 255, 0.018);
+    --auth-spotlight-mid: rgba(255, 255, 255, 0.006);
+    --auth-vignette: rgba(0, 0, 0, 0.4);
+    --auth-card-inset: 0 1px 0 0 rgba(255, 255, 255, 0.03) inset;
+    --auth-card-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.6);
+    --auth-icon-ring: 0 0 0 4px rgba(255, 255, 255, 0.01);
+
+    /* Ghost button */
+    --btn-ghost-bg: transparent;
+    --btn-ghost-hover-bg: rgba(255, 255, 255, 0.04);
+
+    /* Table hover */
+    --table-row-hover: rgba(255, 255, 255, 0.015);
+
+    /* Danger button hover */
+    --danger-hover-bg: rgba(248, 113, 113, 0.14);
+    --danger-hover-border: rgba(248, 113, 113, 0.4);
+    --danger-hover-shadow: 0 0 20px rgba(248, 113, 113, 0.12);
+
+    /* Focus ring */
+    --focus-ring: 0 0 0 3px rgba(255, 255, 255, 0.035);
+
+    /* Alert glows */
+    --alert-danger-shadow: 0 0 25px rgba(248, 113, 113, 0.06);
+    --alert-success-shadow: 0 0 25px rgba(74, 222, 128, 0.06);
 
     /* Typography */
     --font-display: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -64,6 +105,91 @@
 }
 
 
+/* ============================================
+   LIGHT THEME — Warm Paper
+   ============================================ */
+
+[data-theme="light"] {
+    --bg-void: #f0eeeb;
+    --bg-deep: #f4f2ef;
+    --bg-base: #fafaf8;
+    --bg-surface: #ffffff;
+    --bg-raised: #f7f6f4;
+    --bg-elevated: #f0efed;
+    --bg-input: #ffffff;
+
+    --border-subtle: #eeece8;
+    --border: #e0ddd8;
+    --border-medium: #d4d0ca;
+    --border-bright: #c0bbb3;
+    --border-active: #9e9890;
+
+    --text-faint: #c5c0b8;
+    --text-muted: #8c8680;
+    --text-secondary: #6b6560;
+    --text-primary: #3d3833;
+    --text-bright: #1e1a16;
+    --text-white: #0e0c0a;
+
+    /* In light mode, glows become subtle shadows */
+    --glow-xs: 0 1px 3px rgba(0, 0, 0, 0.04);
+    --glow-sm: 0 2px 6px rgba(0, 0, 0, 0.06);
+    --glow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+    --glow-lg: 0 8px 24px rgba(0, 0, 0, 0.1);
+    --glow-xl: 0 12px 36px rgba(0, 0, 0, 0.14);
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+    --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.12);
+
+    /* Functional — slightly deeper for contrast on light bg */
+    --success: #16a34a;
+    --success-bg: rgba(22, 163, 74, 0.06);
+    --success-border: rgba(22, 163, 74, 0.2);
+    --danger: #dc2626;
+    --danger-bg: rgba(220, 38, 38, 0.05);
+    --danger-border: rgba(220, 38, 38, 0.18);
+    --info: #2563eb;
+    --info-bg: rgba(37, 99, 235, 0.05);
+    --info-border: rgba(37, 99, 235, 0.15);
+
+    /* Primary button — inverted: dark bg on light page */
+    --btn-primary-bg: #1a1714;
+    --btn-primary-border: #1a1714;
+    --btn-primary-color: #fafaf8;
+    --btn-primary-hover-bg: #0e0c0a;
+    --btn-primary-hover-border: #0e0c0a;
+    --btn-primary-hover-color: #ffffff;
+
+    /* Auth page */
+    --auth-spotlight: rgba(0, 0, 0, 0.01);
+    --auth-spotlight-mid: rgba(0, 0, 0, 0.005);
+    --auth-vignette: rgba(0, 0, 0, 0.06);
+    --auth-card-inset: none;
+    --auth-card-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.1);
+    --auth-icon-ring: none;
+
+    /* Ghost button */
+    --btn-ghost-bg: transparent;
+    --btn-ghost-hover-bg: rgba(0, 0, 0, 0.04);
+
+    /* Table hover */
+    --table-row-hover: rgba(0, 0, 0, 0.02);
+
+    /* Danger button hover */
+    --danger-hover-bg: rgba(220, 38, 38, 0.08);
+    --danger-hover-border: rgba(220, 38, 38, 0.35);
+    --danger-hover-shadow: 0 0 20px rgba(220, 38, 38, 0.08);
+
+    /* Focus ring */
+    --focus-ring: 0 0 0 3px rgba(0, 0, 0, 0.06);
+
+    /* Alert glows */
+    --alert-danger-shadow: 0 0 25px rgba(220, 38, 38, 0.05);
+    --alert-success-shadow: 0 0 25px rgba(22, 163, 74, 0.05);
+}
+
+
 /* ---- Reset & Base ---- */
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -75,10 +201,81 @@ body {
     min-height: 100vh;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    transition: background 0.3s ease, color 0.3s ease;
 }
 
 
-/* ---- Auth Page ---- */
+/* ============================================
+   THEME TOGGLE
+   ============================================ */
+
+.theme-toggle {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--bg-surface);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--transition);
+    box-shadow: var(--shadow-sm);
+}
+
+.theme-toggle:hover {
+    border-color: var(--border-bright);
+    color: var(--text-bright);
+    box-shadow: var(--shadow-md);
+    transform: scale(1.05);
+}
+
+.theme-toggle:active {
+    transform: scale(0.95);
+}
+
+.theme-toggle svg {
+    width: 18px;
+    height: 18px;
+    transition: transform 0.4s var(--ease-out), opacity 0.2s ease;
+}
+
+.theme-toggle .icon-sun,
+.theme-toggle .icon-moon {
+    position: absolute;
+}
+
+/* Dark mode: show sun icon (to switch to light) */
+.theme-toggle .icon-sun {
+    opacity: 1;
+    transform: rotate(0deg) scale(1);
+}
+
+.theme-toggle .icon-moon {
+    opacity: 0;
+    transform: rotate(-90deg) scale(0.5);
+}
+
+/* Light mode: show moon icon (to switch to dark) */
+[data-theme="light"] .theme-toggle .icon-sun {
+    opacity: 0;
+    transform: rotate(90deg) scale(0.5);
+}
+
+[data-theme="light"] .theme-toggle .icon-moon {
+    opacity: 1;
+    transform: rotate(0deg) scale(1);
+}
+
+
+/* ============================================
+   AUTH PAGE
+   ============================================ */
 
 .auth-page {
     background: var(--bg-void);
@@ -95,8 +292,8 @@ body {
     height: 700px;
     background: radial-gradient(
         ellipse at center,
-        rgba(255, 255, 255, 0.018) 0%,
-        rgba(255, 255, 255, 0.006) 40%,
+        var(--auth-spotlight) 0%,
+        var(--auth-spotlight-mid) 40%,
         transparent 70%
     );
     pointer-events: none;
@@ -110,7 +307,7 @@ body {
     background: radial-gradient(
         ellipse at center,
         transparent 50%,
-        rgba(0, 0, 0, 0.4) 100%
+        var(--auth-vignette) 100%
     );
     pointer-events: none;
 }
@@ -136,8 +333,8 @@ body {
     max-width: 420px;
     box-shadow:
         var(--glow-xs),
-        0 1px 0 0 rgba(255, 255, 255, 0.03) inset,
-        0 25px 60px -15px rgba(0, 0, 0, 0.6);
+        var(--auth-card-inset),
+        var(--auth-card-shadow);
     animation: cardReveal 0.7s var(--ease-out);
 }
 
@@ -158,7 +355,7 @@ body {
     border: 1px solid var(--border-medium);
     margin-bottom: 1.25rem;
     color: var(--text-secondary);
-    box-shadow: var(--glow-sm), 0 0 0 4px rgba(255, 255, 255, 0.01);
+    box-shadow: var(--glow-sm), var(--auth-icon-ring);
     animation: cardReveal 0.7s var(--ease-out) 0.08s both;
 }
 
@@ -192,6 +389,21 @@ body {
     animation: cardReveal 0.7s var(--ease-out) 0.25s both;
 }
 
+/* Login-specific: full-width primary button */
+.login-card .btn-primary {
+    width: 100%;
+    margin-top: 0.5rem;
+}
+
+/* Login-specific: button arrow animation */
+.login-card .btn-primary svg {
+    transition: transform var(--transition);
+}
+
+.login-card .btn-primary:hover svg {
+    transform: translateX(3px);
+}
+
 /* Auth footer */
 .auth-footer {
     display: flex;
@@ -215,7 +427,9 @@ body {
 }
 
 
-/* ---- Forms ---- */
+/* ============================================
+   SHARED: FORMS
+   ============================================ */
 
 .form-group {
     margin-bottom: 1.15rem;
@@ -265,12 +479,19 @@ select:focus {
     border-color: var(--border-active);
     background: var(--bg-deep);
     box-shadow:
-        0 0 0 3px rgba(255, 255, 255, 0.035),
+        var(--focus-ring),
         var(--glow-sm);
 }
 
+[data-theme="light"] input:focus,
+[data-theme="light"] select:focus {
+    background: var(--bg-surface);
+}
 
-/* ---- Buttons ---- */
+
+/* ============================================
+   SHARED: BUTTONS
+   ============================================ */
 
 .btn {
     display: inline-flex;
@@ -303,23 +524,35 @@ select:focus {
     transform: scale(0.98);
 }
 
-/* Primary — inverted: white bg, black text — the page's brightest element */
+/* Ghost variant — outlined, transparent bg */
+.btn-ghost {
+    background: var(--btn-ghost-bg);
+    border-color: var(--border);
+    color: var(--text-secondary);
+}
+
+.btn-ghost:hover {
+    background: var(--btn-ghost-hover-bg);
+    border-color: var(--border-bright);
+    color: var(--text-bright);
+    box-shadow: var(--glow-xs);
+}
+
+/* Primary — inverted contrast: brightest element on page */
 .btn-primary {
-    width: 100%;
-    padding: 0.8rem 1.5rem;
-    background: var(--text-white);
-    border: 1px solid rgba(255, 255, 255, 0.9);
-    color: var(--bg-void);
+    padding: 0.7rem 1.5rem;
+    background: var(--btn-primary-bg);
+    border: 1px solid var(--btn-primary-border);
+    color: var(--btn-primary-color);
     font-weight: 600;
     font-size: 0.9rem;
     letter-spacing: 0.01em;
-    margin-top: 0.5rem;
 }
 
 .btn-primary:hover {
-    background: #ffffff;
-    border-color: #ffffff;
-    color: #000;
+    background: var(--btn-primary-hover-bg);
+    border-color: var(--btn-primary-hover-border);
+    color: var(--btn-primary-hover-color);
     box-shadow: var(--glow-xl);
     transform: translateY(-1px);
 }
@@ -347,9 +580,9 @@ select:focus {
 }
 
 .btn-danger:hover {
-    background: rgba(248, 113, 113, 0.14);
-    border-color: rgba(248, 113, 113, 0.4);
-    box-shadow: 0 0 20px rgba(248, 113, 113, 0.12);
+    background: var(--danger-hover-bg);
+    border-color: var(--danger-hover-border);
+    box-shadow: var(--danger-hover-shadow);
 }
 
 .btn-small {
@@ -358,7 +591,9 @@ select:focus {
 }
 
 
-/* ---- Alerts ---- */
+/* ============================================
+   SHARED: ALERTS
+   ============================================ */
 
 .alert {
     padding: 0.75rem 1rem;
@@ -372,19 +607,22 @@ select:focus {
     background: var(--danger-bg);
     border-color: var(--danger-border);
     color: var(--danger);
-    box-shadow: 0 0 25px rgba(248, 113, 113, 0.06);
+    box-shadow: var(--alert-danger-shadow);
 }
 
 .alert.success {
     background: var(--success-bg);
     border-color: var(--success-border);
     color: var(--success);
-    box-shadow: 0 0 25px rgba(74, 222, 128, 0.06);
+    box-shadow: var(--alert-success-shadow);
 }
 
 
-/* ---- Dashboard: Navbar ---- */
+/* ============================================
+   DASHBOARD
+   ============================================ */
 
+/* Navbar */
 .navbar {
     display: flex;
     justify-content: space-between;
@@ -410,27 +648,34 @@ select:focus {
 
 .nav-user {
     color: var(--text-muted);
-    font-size: 0.85rem;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    letter-spacing: 0.02em;
 }
 
-
-/* ---- Dashboard: Layout ---- */
-
+/* Layout */
 .container {
     max-width: 960px;
     margin: 2rem auto;
     padding: 0 1.5rem;
 }
 
-
-/* ---- Dashboard: Cards ---- */
-
+/* Cards */
 .card {
     background: var(--bg-surface);
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
     padding: 1.5rem;
     margin-bottom: 1.5rem;
+    transition: border-color var(--transition);
+}
+
+[data-theme="light"] .card {
+    box-shadow: var(--shadow-sm);
+}
+
+.card:hover {
+    border-color: var(--border-medium);
 }
 
 .card h3 {
@@ -438,11 +683,11 @@ select:focus {
     color: var(--text-bright);
     font-family: var(--font-display);
     font-weight: 600;
+    font-size: 0.95rem;
+    letter-spacing: -0.005em;
 }
 
-
-/* ---- Dashboard: Forms ---- */
-
+/* Dashboard forms */
 .form-row {
     display: flex;
     gap: 0.5rem;
@@ -457,12 +702,16 @@ select:focus {
     min-width: 120px;
 }
 
+/* Dashboard btn-primary in form-row should NOT be full-width */
+.form-row .btn-primary {
+    width: auto;
+    flex: none;
+}
+
 .inline-form { margin-top: 0.75rem; }
 .inline { display: inline; }
 
-
-/* ---- Dashboard: Table ---- */
-
+/* Table */
 table {
     width: 100%;
     border-collapse: collapse;
@@ -483,8 +732,19 @@ th {
     text-transform: uppercase;
 }
 
+/* Table row hover */
+tbody tr {
+    transition: background var(--transition-fast);
+}
 
-/* ---- Badges ---- */
+tbody tr:hover {
+    background: var(--table-row-hover);
+}
+
+
+/* ============================================
+   BADGES
+   ============================================ */
 
 .badge {
     display: inline-block;
@@ -508,7 +768,9 @@ th {
 }
 
 
-/* ---- Utilities ---- */
+/* ============================================
+   UTILITIES
+   ============================================ */
 
 .text-muted {
     color: var(--text-faint);
@@ -524,7 +786,63 @@ h2 {
 }
 
 
-/* ---- Animations ---- */
+/* ============================================
+   API TOKEN REVEAL
+   ============================================ */
+
+.token-reveal {
+    border-color: var(--success-border);
+    background: var(--success-bg);
+}
+
+.token-warning {
+    font-size: 0.85rem;
+    color: var(--success);
+    margin-bottom: 0.75rem;
+}
+
+.token-value {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 0.75rem;
+    overflow-x: auto;
+}
+
+.token-value code {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--text-bright);
+    word-break: break-all;
+    flex: 1;
+}
+
+.token-value .btn {
+    flex-shrink: 0;
+}
+
+.token-usage {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.token-usage code {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    background: var(--bg-input);
+    padding: 0.15rem 0.4rem;
+    border-radius: var(--radius-sm);
+}
+
+
+/* ============================================
+   ANIMATIONS
+   ============================================ */
 
 @keyframes cardReveal {
     from {
@@ -538,7 +856,9 @@ h2 {
 }
 
 
-/* ---- Responsive ---- */
+/* ============================================
+   RESPONSIVE
+   ============================================ */
 
 @media (max-width: 480px) {
     .login-card {
@@ -553,5 +873,30 @@ h2 {
     .auth-page .login-container::before {
         width: 400px;
         height: 400px;
+    }
+
+    .navbar {
+        padding: 0.75rem 1rem;
+    }
+
+    .container {
+        padding: 0 1rem;
+    }
+
+    .form-row {
+        flex-direction: column;
+    }
+
+    .form-row input,
+    .form-row select,
+    .form-row .btn-primary {
+        width: 100%;
+    }
+
+    .theme-toggle {
+        top: 0.5rem;
+        right: 0.5rem;
+        width: 34px;
+        height: 34px;
     }
 }

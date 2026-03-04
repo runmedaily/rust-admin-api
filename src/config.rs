@@ -24,6 +24,10 @@ pub struct AuthConfig {
     pub cookie_domain: Option<String>,
     /// Set true when behind HTTPS.
     pub cookie_secure: bool,
+    /// JWT signing secret (used directly if set).
+    pub jwt_secret: String,
+    /// Path to a file containing the JWT secret (takes precedence over jwt_secret).
+    pub jwt_secret_file: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -56,6 +60,8 @@ impl Default for AuthConfig {
             auth_url: String::new(),
             cookie_domain: None,
             cookie_secure: false,
+            jwt_secret: String::new(),
+            jwt_secret_file: None,
         }
     }
 }
@@ -74,4 +80,32 @@ impl Config {
             std::fs::read_to_string(path).map_err(|e| format!("Failed to read config: {e}"))?;
         toml::from_str(&content).map_err(|e| format!("Failed to parse config: {e}"))
     }
+}
+
+/// Resolve the JWT secret from config: file > inline > auto-generate.
+pub fn resolve_jwt_secret(auth: &AuthConfig) -> String {
+    if let Some(file) = &auth.jwt_secret_file {
+        match std::fs::read_to_string(file) {
+            Ok(s) => {
+                let secret = s.trim().to_string();
+                if secret.is_empty() {
+                    tracing::error!("jwt_secret_file {file} is empty");
+                    std::process::exit(1);
+                }
+                return secret;
+            }
+            Err(e) => {
+                tracing::error!("Failed to read jwt_secret_file {file}: {e}");
+                std::process::exit(1);
+            }
+        }
+    }
+
+    if !auth.jwt_secret.is_empty() {
+        return auth.jwt_secret.clone();
+    }
+
+    let secret = uuid::Uuid::new_v4().to_string();
+    tracing::warn!("No jwt_secret configured — using auto-generated secret (tokens won't survive restart)");
+    secret
 }
