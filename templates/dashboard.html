@@ -13,19 +13,18 @@
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <button class="theme-toggle" type="button" aria-label="Toggle theme">
-        <svg class="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-        </svg>
-        <svg class="icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-        </svg>
-    </button>
-
     <nav class="navbar">
         <span class="nav-brand">Admin Panel</span>
         <div class="nav-right">
             <span class="nav-user">{{ user.username }} ({{ user.role }})</span>
+            <button class="theme-toggle" type="button" aria-label="Toggle theme">
+                <svg class="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                </svg>
+                <svg class="icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                </svg>
+            </button>
             <a href="/logout" class="btn btn-ghost btn-small">Logout</a>
         </div>
     </nav>
@@ -47,7 +46,7 @@
             <p class="token-warning">Copy this token now — it will not be shown again.</p>
             <div class="token-value">
                 <code id="token-text">{{ token }}</code>
-                <button type="button" class="btn btn-ghost btn-small" onclick="copyToken()">Copy</button>
+                <button type="button" class="btn btn-ghost btn-small" onclick="copyToken(this)">Copy</button>
             </div>
             <p class="token-usage">
                 Use with: <code>Authorization: Bearer &lt;token&gt;</code>
@@ -99,7 +98,7 @@
                             <form method="POST" action="/users/delete" class="inline">
                                 <input type="hidden" name="user_id" value="{{ u.id }}">
                                 <button type="submit" class="btn btn-danger btn-small"
-                                    onclick="return confirm('Delete user {{ u.username }}?')">Delete</button>
+                                    data-confirm="delete-user" data-name="{{ u.username }}">Delete</button>
                             </form>
                             {% else %}
                             <span class="text-muted">You</span>
@@ -151,7 +150,7 @@
                             <form method="POST" action="/tokens/revoke" class="inline">
                                 <input type="hidden" name="token_id" value="{{ t.id }}">
                                 <button type="submit" class="btn btn-danger btn-small"
-                                    onclick="return confirm('Revoke token {{ t.name }}?')">Revoke</button>
+                                    data-confirm="revoke-token" data-name="{{ t.name }}">Revoke</button>
                             </form>
                         </td>
                         {% endif %}
@@ -161,18 +160,59 @@
             </table>
             {% endif %}
         </div>
+        {% if !proxy_routes.is_empty() %}
+        <div class="card">
+            <h3>Proxy Routes</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Host</th>
+                        <th>Path</th>
+                        <th>Upstream</th>
+                        <th>Auth</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in proxy_routes %}
+                    <tr>
+                        <td><code>{{ r.host }}</code></td>
+                        <td><code>{{ r.path_prefix }}</code></td>
+                        <td><code>{{ r.upstream }}</code></td>
+                        <td>
+                            {% if r.auth_required %}
+                            <span class="badge badge-admin">required</span>
+                            {% else %}
+                            <span class="badge badge-user">public</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
     </div>
 
     <script src="/static/theme.js"></script>
     <script>
-    function copyToken() {
-        const text = document.getElementById('token-text').textContent;
-        navigator.clipboard.writeText(text).then(() => {
-            const btn = event.target;
+    function copyToken(btn) {
+        var text = document.getElementById('token-text').textContent;
+        navigator.clipboard.writeText(text).then(function() {
             btn.textContent = 'Copied!';
-            setTimeout(() => btn.textContent = 'Copy', 2000);
+            setTimeout(function() { btn.textContent = 'Copy'; }, 2000);
+        }).catch(function() {
+            btn.textContent = 'Failed';
+            setTimeout(function() { btn.textContent = 'Copy'; }, 2000);
         });
     }
+    document.querySelectorAll('[data-confirm]').forEach(function(btn) {
+        btn.closest('form').addEventListener('submit', function(e) {
+            var action = btn.dataset.confirm === 'delete-user' ? 'Delete user' : 'Revoke token';
+            if (!confirm(action + ' ' + btn.dataset.name + '?')) {
+                e.preventDefault();
+            }
+        });
+    });
     </script>
 </body>
 </html>

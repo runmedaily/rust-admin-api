@@ -1,5 +1,5 @@
 {
-  description = "Rust Admin API — admin panel with forward auth for reverse proxies";
+  description = "Rust Admin API — admin panel with Pingora reverse proxy and auth gateway";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
@@ -19,10 +19,10 @@
           toolchain = fenix.packages.${system}.stable.toolchain;
           craneLib = (crane.mkLib pkgs).overrideToolchain toolchain;
 
-          # Include HTML templates, CSS, and Cargo sources in the build
+          # Include HTML templates, CSS, JS, and Cargo sources in the build
           src = let
             webFilter = path: _type:
-              builtins.match ".*\\.(html|css)$" path != null;
+              builtins.match ".*\\.(html|css|js)$" path != null;
             webOrCargo = path: type:
               (webFilter path type) || (craneLib.filterCargoSources path type);
           in pkgs.lib.cleanSourceWith {
@@ -33,6 +33,8 @@
           rust-admin-api = craneLib.buildPackage {
             inherit src;
             strictDeps = true;
+            nativeBuildInputs = [ pkgs.pkg-config pkgs.cmake ];
+            buildInputs = [ pkgs.openssl ];
           };
         in
         {
@@ -42,6 +44,9 @@
             packages = with pkgs; [
               rust-analyzer
               sqlite
+              openssl
+              pkg-config
+              cmake
               wl-clipboard
             ];
             shellHook = ''

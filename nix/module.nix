@@ -6,15 +6,39 @@ let
   cfg = config.services.rust-admin-api;
   pkg = self.packages.${pkgs.stdenv.hostPlatform.system}.default;
 
-  # Derive auth_url from domain when caddy is enabled
+  # Derive auth_url from domain
   effectiveAuthUrl =
-    if cfg.caddy.enable && cfg.domain != ""
+    if cfg.domain != ""
     then "https://${cfg.domain}"
     else cfg.authUrl;
 
+  # Internal address: loopback only when proxy is enabled
+  internalAddr =
+    if cfg.proxy.enable
+    then "127.0.0.1:${toString cfg.webPort}"
+    else "0.0.0.0:${toString cfg.webPort}";
+
+  routesToToml = routes: lib.concatMapStrings (r: ''
+    [[proxy.routes]]
+    host = "${r.host}"
+    ${lib.optionalString (r.pathPrefix != "") ''path_prefix = "${r.pathPrefix}"''}
+    upstream = "${r.upstream}"
+    auth_required = ${lib.boolToString r.authRequired}
+  '') routes;
+
+  # Auto-generate admin panel route + user-defined routes
+  allRoutes =
+    (lib.optional (cfg.domain != "") {
+      host = cfg.domain;
+      pathPrefix = "";
+      upstream = "http://127.0.0.1:${toString cfg.webPort}";
+      authRequired = false;
+    })
+    ++ cfg.proxy.routes;
+
   configFile = pkgs.writeText "rust-admin-api-config.toml" ''
     [server]
-    listen_addr = "0.0.0.0:${toString cfg.webPort}"
+    listen_addr = "${internalAddr}"
 
     [auth]
     auth_url = "${effectiveAuthUrl}"
@@ -24,33 +48,53 @@ let
 
     [database]
     path = "${cfg.dataDir}/admin.db"
+
+    ${lib.optionalString cfg.proxy.enable ''
+    [proxy]
+    enabled = true
+    http_addr = "0.0.0.0:${toString cfg.proxy.httpPort}"
+    https_addr = "0.0.0.0:${toString cfg.proxy.httpsPort}"
+    cert_path = "/var/lib/acme/${cfg.domain}/fullchain.pem"
+    key_path = "/var/lib/acme/${cfg.domain}/key.pem"
+
+    ${routesToToml allRoutes}
+    ''}
   '';
+
+  routeType = lib.types.submodule {
+    options = {
+      host = lib.mkOption { type = lib.types.str; description = "Hostname to match."; };
+      pathPrefix = lib.mkOption { type = lib.types.str; default = ""; description = "Path prefix to match (empty = all paths)."; };
+      upstream = lib.mkOption { type = lib.types.str; description = "Upstream address (e.g. http://127.0.0.1:3001)."; };
+      authRequired = lib.mkOption { type = lib.types.bool; default = true; description = "Require authentication."; };
+    };
+  };
 in {
   options.services.rust-admin-api = {
-    enable = lib.mkEnableOption "rust-admin-api admin panel with forward auth";
+    enable = lib.mkEnableOption "rust-admin-api admin panel with Pingora proxy";
 
     dataDir = lib.mkOption {
       type = lib.types.path;
       default = "/srv/rust-admin-api";
-      description = "Directory for database and static assets.";
+      description = "Directory for database and JWT secret.";
     };
 
     webPort = lib.mkOption {
       type = lib.types.port;
       default = 3030;
-      description = "Internal web server port (Caddy proxies to this).";
+      description = "Internal web server port for the admin panel.";
     };
 
     domain = lib.mkOption {
       type = lib.types.str;
       default = "";
-      description = "Public domain for the auth service (e.g. auth.example.com). Required when caddy.enable is true.";
+      description = "Public domain for the auth service (e.g. auth.example.com). Required when proxy is enabled.";
     };
 
     authUrl = lib.mkOption {
       type = lib.types.str;
       default = "";
-      description = "Public URL of this auth service. Auto-derived from domain when caddy is enabled.";
+      description = "Public URL of this auth service. Auto-derived from domain.";
     };
 
     cookieDomain = lib.mkOption {
@@ -68,22 +112,40 @@ in {
     openFirewall = lib.mkOption {
       type = lib.types.bool;
       default = false;
-      description = "Open the web port directly in the firewall (not needed when using Caddy).";
+      description = "Open the web port directly in the firewall (not needed when proxy is enabled).";
     };
 
-    # --- Caddy integration ---
+    # --- Pingora proxy ---
 
-    caddy.enable = lib.mkEnableOption "Caddy reverse proxy with automatic HTTPS and forward auth";
+    proxy.enable = lib.mkEnableOption "Pingora reverse proxy with TLS (replaces Caddy)";
 
-    caddy.protectedServices = lib.mkOption {
-      type = lib.types.attrsOf lib.types.str;
-      default = {};
-      description = "Map of domain -> upstream URL. Each domain gets forward auth + reverse proxy.";
+    proxy.httpPort = lib.mkOption {
+      type = lib.types.port;
+      default = 80;
+      description = "HTTP port for Pingora.";
+    };
+
+    proxy.httpsPort = lib.mkOption {
+      type = lib.types.port;
+      default = 443;
+      description = "HTTPS port for Pingora.";
+    };
+
+    proxy.acmeEmail = lib.mkOption {
+      type = lib.types.str;
+      default = "";
+      description = "Email for Let's Encrypt ACME registration. Required when proxy is enabled.";
+    };
+
+    proxy.routes = lib.mkOption {
+      type = lib.types.listOf routeType;
+      default = [];
+      description = "Proxy routes. The admin panel route is added automatically from 'domain'.";
       example = lib.literalExpression ''
-        {
-          "firetv.example.com" = "http://localhost:8081";
-          "grafana.example.com" = "http://localhost:3000";
-        }
+        [
+          { host = "grafana.example.com"; upstream = "http://localhost:3001"; authRequired = true; }
+          { host = "api.example.com"; pathPrefix = "/public"; upstream = "http://localhost:9090"; authRequired = false; }
+        ]
       '';
     };
   };
@@ -92,8 +154,12 @@ in {
     # Assertions
     assertions = [
       {
-        assertion = cfg.caddy.enable -> cfg.domain != "";
-        message = "services.rust-admin-api.domain must be set when caddy is enabled.";
+        assertion = cfg.proxy.enable -> cfg.domain != "";
+        message = "services.rust-admin-api.domain must be set when proxy is enabled.";
+      }
+      {
+        assertion = cfg.proxy.enable -> cfg.proxy.acmeEmail != "";
+        message = "services.rust-admin-api.proxy.acmeEmail must be set when proxy is enabled.";
       }
     ];
 
@@ -104,9 +170,9 @@ in {
 
     # Auth service
     systemd.services.rust-admin-api = {
-      description = "rust-admin-api admin panel with forward auth";
+      description = "rust-admin-api admin panel with Pingora proxy";
       wantedBy = [ "multi-user.target" ];
-      after = [ "network-online.target" ];
+      after = [ "network-online.target" ] ++ lib.optional cfg.proxy.enable "acme-${cfg.domain}.service";
       wants = [ "network-online.target" ];
 
       # Generate JWT secret on first start
@@ -122,35 +188,25 @@ in {
         Restart = "on-failure";
         RestartSec = 5;
         WorkingDirectory = cfg.dataDir;
+      } // lib.optionalAttrs cfg.proxy.enable {
+        # Pingora needs CAP_NET_BIND_SERVICE for ports 80/443
+        AmbientCapabilities = [ "CAP_NET_BIND_SERVICE" ];
+        CapabilityBoundingSet = [ "CAP_NET_BIND_SERVICE" ];
       };
     };
 
-    # Direct firewall access (without Caddy)
-    networking.firewall.allowedTCPPorts = lib.mkIf cfg.openFirewall [ cfg.webPort ];
+    # Direct firewall access (without proxy)
+    networking.firewall.allowedTCPPorts =
+      (lib.optional cfg.openFirewall cfg.webPort)
+      ++ (lib.optionals cfg.proxy.enable [ cfg.proxy.httpPort cfg.proxy.httpsPort ]);
 
-    # --- Caddy: auto-configured reverse proxy with forward auth ---
-    services.caddy = lib.mkIf cfg.caddy.enable {
-      enable = true;
-
-      virtualHosts =
-        # Auth service gets its own domain (login page, dashboard, verify endpoint)
-        {
-          "${cfg.domain}" = {
-            extraConfig = ''
-              reverse_proxy localhost:${toString cfg.webPort}
-            '';
-          };
-        }
-        # Each protected service gets forward_auth + reverse_proxy
-        // lib.mapAttrs (_domain: upstream: {
-          extraConfig = ''
-            forward_auth localhost:${toString cfg.webPort} {
-              uri /api/verify
-              copy_headers X-Forwarded-User X-Forwarded-Role
-            }
-            reverse_proxy ${upstream}
-          '';
-        }) cfg.caddy.protectedServices;
+    # --- ACME certificate management (when proxy is enabled) ---
+    security.acme = lib.mkIf cfg.proxy.enable {
+      acceptTerms = true;
+      defaults.email = cfg.proxy.acmeEmail;
+      certs."${cfg.domain}" = {
+        postRun = "systemctl restart rust-admin-api.service";
+      };
     };
   };
 }

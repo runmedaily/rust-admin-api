@@ -7,6 +7,7 @@ pub struct Config {
     pub server: ServerConfig,
     pub auth: AuthConfig,
     pub database: DatabaseConfig,
+    pub proxy: ProxyConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -36,12 +37,61 @@ pub struct DatabaseConfig {
     pub path: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ProxyConfig {
+    /// Enable the Pingora reverse proxy.
+    pub enabled: bool,
+    /// HTTP listen address (for redirect to HTTPS).
+    pub http_addr: String,
+    /// HTTPS listen address.
+    pub https_addr: String,
+    /// Path to TLS certificate (fullchain PEM).
+    pub cert_path: String,
+    /// Path to TLS private key (PEM).
+    pub key_path: String,
+    /// Proxy routes.
+    pub routes: Vec<RouteConfig>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RouteConfig {
+    /// Hostname to match (exact).
+    pub host: String,
+    /// Path prefix to match. Empty matches all.
+    #[serde(default)]
+    pub path_prefix: String,
+    /// Upstream address (e.g. "http://127.0.0.1:3030").
+    pub upstream: String,
+    /// Require authentication for this route.
+    #[serde(default = "default_true")]
+    pub auth_required: bool,
+}
+
+fn default_true() -> bool {
+    true
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
             server: ServerConfig::default(),
             auth: AuthConfig::default(),
             database: DatabaseConfig::default(),
+            proxy: ProxyConfig::default(),
+        }
+    }
+}
+
+impl Default for ProxyConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            http_addr: "0.0.0.0:80".to_string(),
+            https_addr: "0.0.0.0:443".to_string(),
+            cert_path: String::new(),
+            key_path: String::new(),
+            routes: vec![],
         }
     }
 }

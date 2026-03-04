@@ -17,3 +17,39 @@ listen_addr = "0.0.0.0:3000"
 
 [database]
 path = "admin.db"
+
+# --- Pingora Reverse Proxy (optional) ---
+# When enabled, Pingora acts as the public-facing gateway with inline auth.
+# Axum continues to serve the admin panel on listen_addr (set to 127.0.0.1 internally).
+
+# [proxy]
+# enabled = true
+# http_addr = "0.0.0.0:80"
+# https_addr = "0.0.0.0:443"
+# cert_path = "/var/lib/acme/auth.example.com/fullchain.pem"
+# key_path = "/var/lib/acme/auth.example.com/key.pem"
+
+# The admin panel itself (no auth — login page must be accessible)
+# [[proxy.routes]]
+# host = "auth.example.com"
+# upstream = "http://127.0.0.1:3000"
+# auth_required = false
+
+# A protected service (requires auth)
+# [[proxy.routes]]
+# host = "grafana.example.com"
+# upstream = "http://127.0.0.1:3001"
+# auth_required = true
+
+# Path-based routing (more specific prefix first)
+# [[proxy.routes]]
+# host = "api.example.com"
+# path_prefix = "/public"
+# upstream = "http://127.0.0.1:9090"
+# auth_required = false
+#
+# [[proxy.routes]]
+# host = "api.example.com"
+# path_prefix = "/"
+# upstream = "http://127.0.0.1:9090"
+# auth_required = true
