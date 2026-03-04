@@ -385,6 +385,15 @@ async fn main() {
     tracing::info!("Default login: admin / admin");
     tracing::info!("Forward auth endpoint: GET /api/verify");
 
-    let listener = tokio::net::TcpListener::bind(&listen_addr).await.unwrap();
+    let listener = match tokio::net::TcpListener::bind(&listen_addr).await {
+        Ok(l) => l,
+        Err(e) => {
+            tracing::error!("Failed to bind to {listen_addr}: {e}");
+            if e.kind() == std::io::ErrorKind::AddrInUse {
+                tracing::error!("Port already in use. Kill the existing process: ss -tlnp | grep {}", listen_addr.split(':').last().unwrap_or("3000"));
+            }
+            std::process::exit(1);
+        }
+    };
     axum::serve(listener, app).await.unwrap();
 }
